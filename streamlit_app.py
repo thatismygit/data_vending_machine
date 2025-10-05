@@ -7,12 +7,21 @@ import logging
 from typing import Any, Dict, List, Optional
 import streamlit as st
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 import asyncio
-from client import flatten_to_text, extract_sql_from_text
-import postgres_get_query as pgget
+
+# Optional imports - gracefully degrade if not available
+try:
+    from langchain_openai import ChatOpenAI
+except Exception:
+    ChatOpenAI = None
+
+try:
+    import postgres_get_query as pgget
+except Exception:
+    pgget = None
 
 load_dotenv(override=True)
+
 
 # -------------------- Logging --------------------
 logger = logging.getLogger("data_vending")
@@ -26,6 +35,9 @@ logger.setLevel(logging.INFO)
 
 # -------------------- Helpers --------------------
 def flatten_to_text(obj: Any) -> str:
+    """
+    Robustly convert nested objects / model responses to plain text.
+    """
     parts: List[str] = []
 
     def walk(x):
@@ -61,6 +73,12 @@ def flatten_to_text(obj: Any) -> str:
 
 
 def extract_sql_from_text(text: str) -> str:
+    """
+    Try to extract a SQL query from a text blob:
+    - Prefer ```sql fenced blocks
+    - Then inline code blocks `...` containing 'select'
+    - Then the first occurrence of 'select' to the end
+    """
     if not text:
         return ""
     fence = re.search(r"```(?:sql)?\s*(.*?)```", text, re.DOTALL | re.IGNORECASE)
@@ -68,20 +86,26 @@ def extract_sql_from_text(text: str) -> str:
         return fence.group(1).strip()
     inline = re.findall(r"`([^`]{10,})`", text)
     for m in inline:
-        if re.search(r"\bselect\b", m, re.IGNORECASE):
+        if re.search(r"\b(select|insert|update|delete|create|with)\b", m, re.IGNORECASE):
             return m.strip()
-    start = re.search(r"\bselect\b", text, re.IGNORECASE)
+    start = re.search(r"\b(select|insert|update|delete|create|with)\b", text, re.IGNORECASE)
     if start:
         return text[start.start():].strip()
     return ""
 
 
 def run_executor_raw(sql: str, timeout: int = 120) -> Dict[str, Any]:
+    """
+    Executes an external postgres_execute_query.py (if present) by piping SQL to it.
+    Returns a dict with stdout/stderr/rc. If the script is missing or errors, returns an error message.
+    """
     cmd = [sys.executable, "postgres_execute_query.py", "--run-sql"]
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate(input=sql.encode("utf-8"), timeout=timeout)
         return {"stdout": stdout.decode(), "stderr": stderr.decode(), "rc": proc.returncode}
+    except FileNotFoundError:
+        return {"stdout": json.dumps([{"notice": "postgres_execute_query.py not found - this is a stub"}]), "stderr": "", "rc": 0}
     except Exception as e:
         return {"stdout": "", "stderr": str(e), "rc": -1}
 
@@ -91,8 +115,8 @@ GREETING_RE = re.compile(
     r"^\s*(hi|hello|hey|yo|hiya|who are you|introduce yourself|what are you)\b",
     re.IGNORECASE,
 )
-ASSISTANT_INTRO = """
-### 👋 Hi — I'm the **Data Vending Machine Assistant**
+
+ASSISTANT_INTRO = """### 👋 Hi — I'm the **Data Vending Machine Assistant**
 
 I help you explore your database using **plain English** and convert your requests into **PostgreSQL queries**.
 
@@ -104,6 +128,7 @@ what are the columns in products
 create table employees with id, name, email
 insert into users (name, email) values ('alice', 'a@b.com')
 describe table101
+
 
 """
 
@@ -211,62 +236,79 @@ with left_col:
     st.markdown("</div>", unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_area("Ask a question or describe a query:", height=110, key="chat_input")
-        col1, col2, col3 = st.columns(3)
-        send = col1.form_submit_button("Send")
-        regen = col2.form_submit_button("Regenerate")
-        clear = col3.form_submit_button("Clear Chat")
+    user_input = st.text_area("Ask a question or describe a query:", height=120, key="chat_input")
+    c1, c2, c3 = st.columns(3)
+    send = c1.form_submit_button("Send")
+    regen = c2.form_submit_button("Regenerate")
+    clear_chat_btn = c3.form_submit_button("Clear Chat")
 
-    if clear:
-        for k in ["chat_history", "last_sql", "last_result"]:
-            st.session_state[k] = [] if k == "chat_history" else None
-        st.rerun()
+if clear_chat_btn:
+    for k in ["chat_history", "last_sql", "last_result"]:
+        st.session_state[k] = [] if k == "chat_history" else None
+    st.experimental_rerun()
 
-    prompt = None
-    if send and user_input.strip():
-        prompt = user_input.strip()
-    elif regen:
-        for m in reversed(st.session_state.chat_history):
-            if m["role"] == "user":
-                prompt = m["content"]
-                break
+prompt = None
+if send and user_input.strip():
+    prompt = user_input.strip()
+elif regen:
+    for m in reversed(st.session_state.chat_history):
+        if m["role"] == "user":
+            prompt = m["content"]
+            break
 
-    if prompt:
-        st.session_state.chat_history.append({"role": "user", "content": prompt})
-        if GREETING_RE.search(prompt):
-            st.session_state.chat_history.append({"role": "assistant", "content": ASSISTANT_INTRO})
-            st.session_state.last_sql = ""
-            st.rerun()
+if prompt:
+    st.session_state.chat_history.append({"role": "user", "content": prompt})
+    # greeting handling
+    if GREETING_RE.search(prompt):
+        st.session_state.chat_history.append({"role": "assistant", "content": ASSISTANT_INTRO})
+        st.session_state.last_sql = ""
+        st.experimental_rerun()
 
-        # placeholder agent
-        async def agent_call(text):
-            """Generate SQL using ChatGPT, fallback to rule-based generator."""
+    # Agent call: ChatOpenAI preferred, fallback to pgget.get_query if available
+    async def agent_call(text: str) -> Dict[str, str]:
+        try:
+            if ChatOpenAI is None:
+                raise Exception("ChatOpenAI not available")
             model = ChatOpenAI(
-            model="gpt-4o-mini",
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-            temperature=0)
-            try:
-                response = await model.ainvoke(f"Convert this into SQL query for PostgreSQL:\n{text}")
-                flat = flatten_to_text(response)
-                sql = extract_sql_from_text(flat)
-                if not sql:
+                model="gpt-4o-mini",
+                openai_api_key=os.getenv("OPENAI_API_KEY"),
+                temperature=0,
+            )
+            response = await model.ainvoke(f"Convert this into SQL query for PostgreSQL:\n{text}")
+            flat = flatten_to_text(response)
+            sql = extract_sql_from_text(flat)
+            if not sql and pgget is not None:
+                try:
                     sql = pgget.get_query(text)
-                return {"content": flat, "sql": sql}
-            except Exception as e:
-                return {"content": f"Error generating SQL: {e}", "sql": pgget.get_query(text)}
+                except Exception:
+                    sql = ""
+            return {"content": flat, "sql": sql}
+        except Exception as e:
+            # fallback: try pgget or return an explanatory message
+            logger.warning(f"ChatOpenAI fallback: {e}")
+            fallback_sql = ""
+            if pgget is not None:
+                try:
+                    fallback_sql = pgget.get_query(text)
+                except Exception:
+                    fallback_sql = ""
+            content = f"(fallback) Could not use ChatOpenAI: {e}\n\nGenerated/fallback SQL:\n{fallback_sql}"
+            return {"content": content, "sql": fallback_sql}
 
-        with st.spinner("Thinking..."):
-            resp = asyncio.run(agent_call(prompt))
-        flat = flatten_to_text(resp)
-        sql = resp.get("sql", "")
-        if not sql:
-            try:
-                sql = pgget.get_query(prompt)
-            except Exception as e:
-                logger.warning(f"fallback failed {e}")
-        st.session_state.last_sql = sql or ""
-        st.session_state.chat_history.append({"role": "assistant", "content": flat})
-        st.rerun()
+    with st.spinner("Thinking..."):
+        resp = asyncio.run(agent_call(prompt))
+
+    flat_resp = flatten_to_text(resp.get("content") or resp)
+    sql = resp.get("sql", "") or ""
+    if not sql and pgget is not None:
+        try:
+            sql = pgget.get_query(prompt)
+        except Exception:
+            sql = ""
+    st.session_state.last_sql = sql or ""
+    st.session_state.chat_history.append({"role": "assistant", "content": flat_resp})
+    st.experimental_rerun()
+
 
 # -------- Right: Controls --------
 with right_col:
@@ -275,23 +317,20 @@ with right_col:
 
     # Edit mode toggle
     if st.session_state.edit_mode:
-        new_sql = st.text_area("Edit SQL:", value=st.session_state.last_sql, height=150, key="sql_edit_box")
-        save_btn = st.button("💾 Save Query")
-        if save_btn:
-            st.session_state.last_sql = new_sql.strip()
-            st.session_state.edit_mode = False
-            st.success("Query updated!")
-            st.rerun()
+        new_sql = st.sidebar.text_area("Edit SQL:", value=st.session_state.last_sql, height=220)
+        save_btn = st.sidebar.button("💾 Save Query")
+        cancel_btn = st.sidebar.button("✖️ Cancel")
     else:
         if st.session_state.last_sql:
-            st.code(st.session_state.last_sql, language="sql")
+            st.sidebar.code(st.session_state.last_sql, language="sql")
         else:
-            st.info("No SQL yet. Ask the assistant or describe a query.")
+            st.sidebar.info("No SQL yet. Ask the assistant or describe a query.")
+
 
     # Buttons: Run Query & Edit Query
-    run_col, edit_col = st.columns([1, 1])
-    run_query = run_col.button("▶️ Run Query")
-    edit_query = edit_col.button("✏️ Edit Query")
+    run_query = st.sidebar.button("▶️ Run Query")
+    edit_query = st.sidebar.button("✏️ Edit Query")
+    clear_all = st.sidebar.button("🧹 Clear Chat & Results")
 
     if edit_query:
         st.session_state.edit_mode = True
@@ -313,13 +352,12 @@ with right_col:
     st.markdown("---")
     st.subheader("📊 Query Result")
     if st.session_state.last_result is None:
-        st.write("No results yet. Run a query to preview results.")
+        st.sidebar.write("No results yet.")
     else:
         res = st.session_state.last_result
         if isinstance(res, list):
-            st.dataframe(res[:50])
-        else:
-            st.text(res)
+            st.sidebar.write(f"{len(res)} rows — previewing up to 5")
+            st.sidebar.table(res[:5])
 
     st.markdown("</div></div>", unsafe_allow_html=True)
 
