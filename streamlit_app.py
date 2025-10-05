@@ -156,7 +156,7 @@ with left_col:
                 unsafe_allow_html=True,
             )
             st.markdown(content, unsafe_allow_html=False)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("<hr style='border:0;border-top:1px solid #333;margin:8px 0;'>", unsafe_allow_html=True)
         else:
             st.markdown(
                 f"<div class='{bubble_class}'>{content}</div>",
@@ -219,7 +219,7 @@ with left_col:
             except Exception as e:
                 logger.warning(f"fallback failed {e}")
         st.session_state.last_sql = sql or ""
-        st.session_state.chat_history.append({"role": "assistant", "content": flat.replace("\n", "<br>")})
+        st.session_state.chat_history.append({"role": "assistant", "content": flat})
         st.rerun()
 
 # -------- Right: Controls --------
