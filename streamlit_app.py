@@ -116,69 +116,14 @@ st.markdown(
     """
     <style>
     body { background: #0b1220; color: #e6eef8; }
-
-    .card {
-        background: rgba(255,255,255,0.03);
-        padding: 14px;
-        border-radius: 12px;
-        box-shadow: 0 6px 18px rgba(2,6,23,0.6);
-    }
-
-    .user-bubble {
-        background: linear-gradient(90deg,#4f46e5,#06b6d4);
-        color: white;
-        padding: 10px 14px;
-        border-radius: 18px;
-        display:inline-block;
-        max-width:88%;
-    }
-
-    .bot-bubble {
-        background: rgba(255,255,255,0.06);
-        color: #e6eef8;
-        padding: 10px 14px;
-        border-radius: 18px;
-        display:inline-block;
-        max-width:88%;
-    }
-
-    .chat-container {
-        max-height: calc(100vh - 200px);
-        overflow-y: auto;
-        padding-right: 6px;
-    }
-
-    /* 🧠 Make SQL panel sticky on the right side */
-    #controls-panel {
-        position: fixed;
-        right: 20px;
-        top: 80px;
-        width: 30%;
-        max-height: 85vh;
-        overflow-y: auto;
-        z-index: 999;
-    }
-
-    /* prevent overlap with fixed panel */
-    .block-container {
-        max-width: 68% !important;
-        margin-right: 32%;
-    }
-
+    .card { background: rgba(255,255,255,0.03); padding: 14px; border-radius: 12px; box-shadow: 0 6px 18px rgba(2,6,23,0.6); }
+    .user-bubble { background: linear-gradient(90deg,#4f46e5,#06b6d4); color: white; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:88%; }
+    .bot-bubble { background: rgba(255,255,255,0.06); color: #e6eef8; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:88%; }
+    .chat-container { max-height: calc(100vh - 200px); overflow: auto; padding-right: 6px; }
+    #controls-panel { position: sticky; top: 20px; z-index: 999; }
     @media (max-width: 900px) {
-        #controls-panel { 
-            position: static;
-            width: 100%;
-            margin-top: 12px;
-        }
-        .block-container {
-            max-width: 100% !important;
-            margin-right: 0;
-        }
-        .chat-container {
-            max-height: none;
-            overflow: visible;
-        }
+        #controls-panel { position: static; margin-top: 12px; }
+        .chat-container { max-height: none; overflow: visible; }
     }
     </style>
     """,
