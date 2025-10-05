@@ -141,12 +141,20 @@ with left_col:
     st.markdown("<div class='card chat-container'>", unsafe_allow_html=True)
     for msg in st.session_state.chat_history:
         role, content = msg["role"], msg["content"]
-        bubble = "user-bubble" if role == "user" else "bot-bubble"
         justify = "flex-end" if role == "user" else "flex-start"
-        st.markdown(
-            f"<div style='display:flex;justify-content:{justify};margin:10px 0'><div class='{bubble}'>{content}</div></div>",
-            unsafe_allow_html=True,
-        )
+        bubble_class = "user-bubble" if role == "user" else "bot-bubble"
+        if role == "assistant":
+            st.markdown(
+                f"<div class='{bubble_class}' style='width:88%'>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(content, unsafe_allow_html=False)
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(
+                f"<div class='{bubble_class}'>{content}</div>",
+                unsafe_allow_html=True,
+            )
     st.markdown("</div>", unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
