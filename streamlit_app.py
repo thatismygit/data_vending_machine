@@ -7,6 +7,9 @@ import logging
 from typing import Any, Dict, List, Optional
 import streamlit as st
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+import asyncio
+from client import flatten_to_text, extract_sql_from_text
 import postgres_get_query as pgget
 
 load_dotenv(override=True)
@@ -175,15 +178,26 @@ with left_col:
             st.rerun()
 
         # placeholder agent
-        def agent_call(text):
-            if "table" in text.lower():
-                return {"content": "Check the SQL Candidate box on the right."}
-            return {"content": "Here’s a sample SQL:\n```sql\nSELECT * FROM demo_table LIMIT 10;\n```"}
+        async def agent_call(text):
+            """Generate SQL using ChatGPT, fallback to rule-based generator."""
+            model = ChatOpenAI(
+            model="gpt-4o-mini",
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            temperature=0)
+            try:
+                response = await model.ainvoke(f"Convert this into SQL query for PostgreSQL:\n{text}")
+                flat = flatten_to_text(response)
+                sql = extract_sql_from_text(flat)
+                if not sql:
+                    sql = pgget.get_query(text)
+                return {"content": flat, "sql": sql}
+            except Exception as e:
+                return {"content": f"Error generating SQL: {e}", "sql": pgget.get_query(text)}
 
         with st.spinner("Thinking..."):
-            resp = agent_call(prompt)
+            resp = asyncio.run(agent_call(prompt))
         flat = flatten_to_text(resp)
-        sql = extract_sql_from_text(flat)
+        sql = resp.get("sql", "")
         if not sql:
             try:
                 sql = pgget.get_query(prompt)
