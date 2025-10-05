@@ -1,6 +1,3 @@
-# streamlit_app.py
-# Streamlit chat + sticky right panel with Run Query and Edit Query options.
-
 import os
 import sys
 import re
@@ -104,6 +101,7 @@ ASSISTANT_INTRO = (
 # -------------------- Streamlit Setup --------------------
 st.set_page_config(page_title="Data Vending Machine", layout="wide")
 st.title("Data Vending Machine")
+st.caption("Turn plain English into safe, paginated SQL results — with explanations")
 st.markdown(
     """
     <style>
@@ -238,7 +236,7 @@ with right_col:
         st.rerun()
 
     st.markdown("---")
-    st.subheader("📊 Last Result (preview)")
+    st.subheader("📊 Query Result")
     if st.session_state.last_result is None:
         st.write("No results yet. Run a query to preview results.")
     else:
@@ -251,4 +249,4 @@ with right_col:
     st.markdown("</div></div>", unsafe_allow_html=True)
 
 # Footer
-st.caption("Made by Vishnu Pandey — simplified buttons & editable SQL query interface.")
+st.caption("made by Vishnu Pandey.")
