@@ -261,13 +261,13 @@ async def main():
         }
     )
 
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
     if not deepseek_key:
-        raise RuntimeError("DEEPSEEK_API_KEY not found. Put it in environment or .env")
+        raise RuntimeError("OPENAI_API_KEY not found. Put it in environment or .env")
 
     tools = await client.get_tools()
     # create the react agent which can call the postgres_get_query tool
-    model = ChatOpenAI(model="deepseek-chat", openai_api_key=deepseek_key, openai_api_base="https://api.deepseek.com/v1", temperature=0)
+    model = ChatOpenAI(model="gpt-4o-mini", openai_api_key=openai_key, temperature=0)
     agent = create_react_agent(model, tools)
 
     print("Enter requests. Type 'exit' to quit.")
@@ -381,3 +381,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
