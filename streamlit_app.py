@@ -1,5 +1,4 @@
 # streamlit_app.py
-# Responsive chat-style Streamlit app with an independent sticky right controls panel.
 
 import os
 import sys
@@ -443,4 +442,4 @@ if st.button("Explain last result"):
             st.info("Last result is a non-tabular response; inspect output above.")
 
 # Footer
-st.caption("Made by Vishnu Pandey — improved UI. Replace agent_call() with your agent for smarter SQL generation.")
+st.caption("Made by Vishnu Pandey")
