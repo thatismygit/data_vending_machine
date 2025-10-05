@@ -252,7 +252,7 @@ with left_col:
             if "tables" in lower or "list tables" in lower or "schema" in lower:
                 return {"content": "Here are the tables you can query: `users`, `orders`, `products`."}
             # Otherwise return an example SQL suggestion packaged as fenced code
-            return {"content": "Here’s a SQL for your request:\n```sql\nSELECT * FROM demo_table LIMIT 10;\n```"}
+            return {"content": "I am unable to process your request."}
 
         with st.spinner("Thinking..."):
             try:
