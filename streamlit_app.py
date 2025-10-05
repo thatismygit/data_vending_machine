@@ -1,4 +1,6 @@
 # streamlit_app.py
+# Responsive chat-style Streamlit app with an independent sticky right controls panel.
+
 import os
 import sys
 import re
@@ -10,7 +12,7 @@ from typing import Any, Dict, List, Optional
 import streamlit as st
 from dotenv import load_dotenv
 
-# Local fallback: natural language -> SQL
+# local fallback: natural language -> SQL
 import postgres_get_query as pgget
 
 load_dotenv(override=True)
@@ -149,23 +151,49 @@ def is_greeting_or_identity_query(text: str) -> bool:
 # -------------------------
 st.set_page_config(page_title="Data Vending Machine", layout="wide")
 
-# CSS for aesthetics (kept compact)
+# CSS for layout & aesthetics
 st.markdown(
     """
     <style>
+    /* page and card visuals */
     body { background: #0b1220; color: #e6eef8; }
     .card { background: rgba(255,255,255,0.03); padding: 14px; border-radius: 12px; box-shadow: 0 6px 18px rgba(2,6,23,0.6); }
-    .user-bubble { background: linear-gradient(90deg,#4f46e5,#06b6d4); color: white; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:80%; }
-    .bot-bubble { background: rgba(255,255,255,0.06); color: #e6eef8; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:80%; }
-    .muted { color: #9fb0d6; }
-    .input-card { background: rgba(0,0,0,0.25); padding: 12px; border-radius: 10px; }
+
+    /* chat bubbles */
+    .user-bubble { background: linear-gradient(90deg,#4f46e5,#06b6d4); color: white; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:88%; }
+    .bot-bubble { background: rgba(255,255,255,0.06); color: #e6eef8; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:88%; }
+
+    /* left chat container scrollable so right panel remains visible */
+    .chat-container {
+        max-height: calc(100vh - 200px); 
+        overflow: auto;
+        padding-right: 6px;
+    }
+
+    /* sticky controls on the right */
+    #controls-panel {
+        position: sticky;
+        top: 20px;
+        z-index: 999;
+    }
+
+    /* responsive: on small screens stack controls below chat (normal flow) */
+    @media (max-width: 900px) {
+        #controls-panel { position: static; margin-top: 12px; }
+        .chat-container { max-height: none; overflow: visible; }
+    }
+
+    /* make code blocks more compact */
+    .stCodeBlock pre { background: rgba(0,0,0,0.35); padding:10px; border-radius:8px; }
+
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# Title and subtitle
 st.markdown("<h1 style='margin-bottom:6px'>Data Vending Machine</h1>", unsafe_allow_html=True)
-st.markdown("<div class='muted'>Conversational SQL explorer — ask a question, or say hi</div>", unsafe_allow_html=True)
+st.markdown("<div style='color:#9fb0d6;margin-bottom:14px'>Conversational SQL explorer — ask a question, or say hi</div>", unsafe_allow_html=True)
 
 # Initialize session state safely (before widgets are created)
 if "chat_history" not in st.session_state:
@@ -181,34 +209,36 @@ if "visible_columns" not in st.session_state:
 if "total_rows" not in st.session_state:
     st.session_state["total_rows"] = None
 
-# Layout columns
-left_col, right_col = st.columns([2.4, 1])
+# Layout: left chat, right sticky controls
+left_col, right_col = st.columns([2.6, 1])
 
 # LEFT: chat area
 with left_col:
     st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-    # Render chat history
+    # Chat messages wrapped in a scrollable container so right panel stays visible while we scroll chat
+    st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
     for msg in st.session_state.chat_history:
         role = msg.get("role", "assistant")
         content = msg.get("content", "")
         if role == "user":
-            st.markdown(f"<div style='display:flex;justify-content:flex-end;margin:8px 0'><div class='user-bubble'>{content}</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='display:flex;justify-content:flex-end;margin:10px 0'><div class='user-bubble'>{content}</div></div>", unsafe_allow_html=True)
         else:
-            st.markdown(f"<div style='display:flex;justify-content:flex-start;margin:8px 0'><div class='bot-bubble'>{content}</div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='display:flex;justify-content:flex-start;margin:10px 0'><div class='bot-bubble'>{content}</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Input form (clear_on_submit to avoid writing widget-backed keys later)
+    # Input form (clear_on_submit avoids modifying widget-backed session_state afterwards)
     with st.form("chat_form", clear_on_submit=True):
         user_input = st.text_area("Ask a question or describe a query:", height=110, key="chat_input")
-        col1, col2, col3 = st.columns([1,1,1])
+        col1, col2, col3 = st.columns([1, 1, 1])
         send = col1.form_submit_button("Send")
         regenerate = col2.form_submit_button("Regenerate")
         clear_chat = col3.form_submit_button("Clear Chat")
 
-    # Clear chat handling (safe mutation)
     if clear_chat:
+        # safe session-state mutations only
         st.session_state.chat_history = []
         st.session_state.last_sql = ""
         st.session_state.last_result = None
@@ -217,42 +247,40 @@ with left_col:
         st.session_state.total_rows = None
         st.rerun()
 
-    # Decide the prompt we will send to the agent (or handle as greeting/regenerate)
+    # Determine prompt to send (send or regenerate last)
     prompt_to_send: Optional[str] = None
     if send and user_input and user_input.strip():
         prompt_to_send = user_input.strip()
     elif regenerate:
-        # find last user message
         for m in reversed(st.session_state.chat_history):
             if m.get("role") == "user":
                 prompt_to_send = m.get("content")
                 break
 
-    # If there's a prompt to send, process it
+    # Handle sending prompt
     if prompt_to_send:
-        # Append the user message (rendered raw)
+        # append user message
         st.session_state.chat_history.append({"role": "user", "content": prompt_to_send})
 
-        # 1) Check for greeting/identity — respond with canned intro
+        # if greeting/identity -> canned intro and do not attempt SQL
         if is_greeting_or_identity_query(prompt_to_send):
             st.session_state.chat_history.append({"role": "assistant", "content": ASSISTANT_INTRO})
-            # do not generate SQL; reset last_sql
             st.session_state.last_sql = ""
             st.rerun()
 
-        # 2) Otherwise call agent (placeholder) or fallback NL->SQL helper
-        # NOTE: Replace agent_call() placeholder with your actual ask_agent_sync() if desired.
+        # Otherwise call agent (placeholder). Replace this with your ask_agent_sync if you want.
         def agent_call(prompt_text: str) -> Dict[str, Any]:
             """
-            Placeholder agent call. Replace this with your real agent invocation (ask_agent_sync)
-            that returns an object the flatten_to_text() function can consume.
+            Placeholder agent call. Replace this with your real agent invocation (ask_agent_sync).
+            Should return an object that flatten_to_text() will convert to a string (or a dict with 'content').
             """
-            # Simple heuristic: if user asks about schema/tables, return friendly SQL-like suggestions
             lower = prompt_text.lower()
             if "tables" in lower or "list tables" in lower or "schema" in lower:
+                # helpful non-sql response with hint
                 return {"content": "Check the SQL Query box on the right."}
-            # Otherwise return an example SQL suggestion packaged as fenced code
-            return {"content": "I am unable to process your request."}
+            # Generic SQL suggestion (if relevant). If nothing relevant, respond with a human message
+            # Here we choose a safe non-SQL fallback message to avoid spamming SQL for small chit-chat.
+            return {"content": "I can help build SQL for database questions — please describe what data you'd like."}
 
         with st.spinner("Thinking..."):
             try:
@@ -263,10 +291,9 @@ with left_col:
                 st.rerun()
 
         flat_text = flatten_to_text(raw_response)
-        # Extract SQL candidate if present
         sql_candidate = extract_sql_from_text(flat_text)
 
-        # If no SQL was extracted, attempt fallback NL->SQL (postgres_get_query.get_query)
+        # fallback NL->SQL helper if agent returned nothing SQL-like
         used_fallback = False
         if not sql_candidate:
             try:
@@ -277,23 +304,24 @@ with left_col:
             except Exception as e:
                 logger.debug("NL->SQL fallback failed: %s", e)
 
-        # Save last_sql (could be empty if no SQL)
         st.session_state.last_sql = sql_candidate or ""
-
-        # Format assistant response for chat (preserve newlines as <br>)
         assistant_display = flat_text.replace("\n", "<br>")
         st.session_state.chat_history.append({"role": "assistant", "content": assistant_display})
 
-        # continue to rerender UI to show new messages and controls
+        # rerender UI to show new messages
         st.rerun()
 
-# RIGHT: controls and result preview
+# RIGHT: sticky controls panel
 with right_col:
+    # wrap controls in a sticky container so it stays visible
+    st.markdown("<div id='controls-panel'>", unsafe_allow_html=True)
     st.markdown("<div class='card'>", unsafe_allow_html=True)
+
     st.header("⚙️ Controls")
     page_size = st.number_input("Rows per page", min_value=5, max_value=1000, value=50, step=5)
     search_term = st.text_input("Search term (applies ILIKE across visible columns)")
     st.markdown("---")
+
     st.subheader("🧠 SQL Candidate")
     if st.session_state.last_sql:
         st.code(st.session_state.last_sql, language="sql")
@@ -305,7 +333,6 @@ with right_col:
     fetch_page = exec_col1.button("Fetch / Refresh Page")
     run_full = exec_col2.button("Run full (dangerous)")
 
-    # Display last result preview
     st.markdown("---")
     st.subheader("📊 Last Result (preview)")
     if st.session_state.last_result is None:
@@ -318,8 +345,11 @@ with right_col:
             st.text(res)
 
     st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# Execution functions (outside widget creation)
+# -------------------------
+# Execution helpers & handlers (outside widget creation)
+# -------------------------
 def build_where_clause_for_search(term: str, columns: List[str]) -> str:
     if not term or not columns:
         return ""
@@ -335,16 +365,13 @@ def build_where_clause_for_search(term: str, columns: List[str]) -> str:
 if st.session_state.get("last_sql"):
     if fetch_page:
         user_sql = st.session_state.last_sql
-        # If SELECT, do paginated selection with optional search
         if re.match(r"^\s*select\b", user_sql.strip(), re.IGNORECASE):
             where_clause = ""
             cols = st.session_state.get("visible_columns") or []
-            # if visible columns unknown, we'll try fetch without search and set visible columns once we get results
             if search_term:
                 wc = build_where_clause_for_search(search_term, cols)
                 where_clause = wc
 
-            # build count query to show total rows (best-effort)
             count_q = f"WITH user_query AS ({user_sql.rstrip(';')}) SELECT count(*) as cnt FROM user_query;"
             with st.spinner("Counting rows..."):
                 raw_cnt = run_executor_raw(count_q)
@@ -357,7 +384,6 @@ if st.session_state.get("last_sql"):
                     k = list(parsed_cnt[0].keys())[0]
                     st.session_state.total_rows = int(parsed_cnt[0].get(k, 0))
             except Exception:
-                # ignore parsing issues
                 st.session_state.total_rows = None
 
             wc_sql = f"WHERE {where_clause}" if where_clause else ""
@@ -379,9 +405,19 @@ if st.session_state.get("last_sql"):
             if st.session_state.total_rows is not None:
                 max_page = max(0, (st.session_state.total_rows - 1) // page_size)
                 st.info(f"Page {st.session_state.get('page_idx', 0) + 1} / {max_page + 1} — total rows: {st.session_state.total_rows}")
+        else:
+            # non-select: run directly
+            with st.spinner("Executing query..."):
+                raw = run_executor_raw(user_sql)
+            if raw.get("stderr"):
+                st.warning(f"Executor stderr: {raw.get('stderr')}")
+            try:
+                parsed = json.loads(raw.get("stdout") or "null")
+                st.session_state.last_result = parsed
+            except Exception:
+                st.session_state.last_result = raw.get("stdout")
 
     if run_full:
-        # run full query (dangerous for large tables)
         with st.spinner("Running full SQL (be careful)..."):
             raw = run_executor_raw(st.session_state.last_sql, timeout=300)
         if raw.get("stderr"):
@@ -395,12 +431,11 @@ if st.session_state.get("last_sql"):
             st.session_state.visible_columns = list(parsed_full[0].keys())
             st.session_state.total_rows = len(parsed_full)
 
-# Simple explanation button (optional)
+# Explanation button
 if st.button("Explain last result"):
     if st.session_state.get("last_result") is None:
         st.info("No result to explain.")
     else:
-        # If you have a model, use it to produce a short explanation. Here we provide a simple summary.
         res = st.session_state["last_result"]
         if isinstance(res, list):
             st.success(f"Result contains {len(res)} rows. Showing first few rows above.")
@@ -408,4 +443,4 @@ if st.button("Explain last result"):
             st.info("Last result is a non-tabular response; inspect output above.")
 
 # Footer
-st.caption("Made by Vishnu Pandey")
+st.caption("Made by Vishnu Pandey — improved UI. Replace agent_call() with your agent for smarter SQL generation.")
