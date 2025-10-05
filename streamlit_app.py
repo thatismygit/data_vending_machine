@@ -100,8 +100,10 @@ You can try things like:
 
 ```text
 show tables
-show first 10 rows of customers
-average revenue per region
+what are the columns in products
+create table employees with id, name, email
+insert into users (name, email) values ('alice', 'a@b.com')
+describe table101
 
 """
 
