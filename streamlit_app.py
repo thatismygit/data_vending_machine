@@ -116,19 +116,65 @@ st.markdown(
     """
     <style>
     body { background: #0b1220; color: #e6eef8; }
-    .card { background: rgba(255,255,255,0.03); padding: 14px; border-radius: 12px; box-shadow: 0 6px 18px rgba(2,6,23,0.6); }
-    .user-bubble { background: linear-gradient(90deg,#4f46e5,#06b6d4); color: white; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:88%; }
-    .bot-bubble { background: rgba(255,255,255,0.06); color: #e6eef8; padding: 10px 14px; border-radius: 18px; display:inline-block; max-width:88%; }
-    .chat-container { max-height: calc(100vh - 200px); overflow: auto; padding-right: 6px; }
-    #controls-panel { position: sticky; top: 20px; z-index: 999; }
-    @media (max-width: 900px) {
-        #controls-panel { position: static; margin-top: 12px; }
-        .chat-container { max-height: none; overflow: visible; }
+
+    .main-container {
+        display: flex;
+        flex-direction: row;
+        gap: 20px;
+        height: calc(100vh - 140px);
+    }
+
+    .left-panel, .right-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(2,6,23,0.6);
+        padding: 14px;
+    }
+
+    .chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+
+    .user-bubble {
+        background: linear-gradient(90deg,#4f46e5,#06b6d4);
+        color: white;
+        padding: 10px 14px;
+        border-radius: 18px;
+        display:inline-block;
+        max-width:88%;
+    }
+
+    .bot-bubble {
+        background: rgba(255,255,255,0.06);
+        color: #e6eef8;
+        padding: 10px 14px;
+        border-radius: 18px;
+        display:inline-block;
+        max-width:88%;
+    }
+
+    .right-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+
+    .card-section {
+        background: rgba(255,255,255,0.04);
+        padding: 12px;
+        border-radius: 10px;
+        margin-bottom: 16px;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # -------------------- State --------------------
 for key, val in {
