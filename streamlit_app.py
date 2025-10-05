@@ -110,6 +110,35 @@ def run_executor_raw(sql: str, timeout: int = 120) -> Dict[str, Any]:
         return {"stdout": "", "stderr": str(e), "rc": -1}
 
 
+# -------------------- Rerun compatibility helper --------------------
+def safe_rerun():
+    """
+    Try to request a Streamlit rerun in a way that is compatible across Streamlit versions.
+    If experimental_rerun is not present, fall back to st.stop() to cleanly halt execution.
+    """
+    try:
+        # Preferred: call existing API if available
+        if hasattr(st, "experimental_rerun") and callable(st.experimental_rerun):
+            st.experimental_rerun()
+            return
+    except Exception:
+        pass
+
+    # Fallback: try raising internal rerun exception if available (best-effort)
+    try:
+        # streamlit internals change across versions; attempt common internal exception
+        from streamlit.runtime.scriptrunner import RerunException  # type: ignore
+
+        raise RerunException()
+    except Exception:
+        # Last resort: st.stop() will halt execution cleanly.
+        try:
+            st.stop()
+        except Exception:
+            # If even st.stop() is not present for some reason, raise SystemExit
+            raise SystemExit()
+
+
 # -------------------- Greeting detection --------------------
 GREETING_RE = re.compile(
     r"^\s*(hi|hello|hey|yo|hiya|who are you|introduce yourself|what are you)\b",
@@ -129,7 +158,6 @@ create table employees with id, name, email
 insert into users (name, email) values ('alice', 'a@b.com')
 describe table101
 
-
 """
 
 
@@ -138,9 +166,9 @@ st.set_page_config(page_title="Data Vending Machine", layout="wide")
 st.title("Data Vending Machine")
 st.caption("Turn plain English into safe, paginated SQL results — with explanations")
 st.markdown(
-    """
-    <style>
-    body { background: #0b1220; color: #e6eef8; }
+"""
+<style>
+body { background: #0b1220; color: #e6eef8; }
 
     .main-container {
         display: flex;
@@ -239,14 +267,12 @@ with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_area(
         "Ask a question or describe a query:",
         height=120,
-        key="chat_input"
+        key="chat_input",
     )
-
     c1, c2, c3 = st.columns(3)
     send = c1.form_submit_button("Send")
     regen = c2.form_submit_button("Regenerate")
     clear_chat_btn = c3.form_submit_button("Clear Chat")
-
 
 if clear_chat_btn:
     for k in ["chat_history", "last_sql", "last_result"]:
