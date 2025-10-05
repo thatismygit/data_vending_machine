@@ -301,7 +301,7 @@ for i, msg in enumerate(st.session_state.chat_messages):
 
 # Input area (chat form)
 with st.form("chat_input", clear_on_submit=True):
-    user_text = st.text_area("You", height=120, placeholder="Ask in plain English (e.g. show me users with gmail.com).")
+    user_text = st.text_area("You", height=120, placeholder="Ask in plain English")
     submit = st.form_submit_button("Send")
 
 if submit and user_text and user_text.strip():
