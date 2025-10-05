@@ -250,7 +250,7 @@ with left_col:
             # Simple heuristic: if user asks about schema/tables, return friendly SQL-like suggestions
             lower = prompt_text.lower()
             if "tables" in lower or "list tables" in lower or "schema" in lower:
-                return {"content": "Here are the tables you can query: `users`, `orders`, `products`."}
+                return {"content": "Check the SQL Query box on the right."}
             # Otherwise return an example SQL suggestion packaged as fenced code
             return {"content": "I am unable to process your request."}
 
