@@ -380,8 +380,13 @@ else:
         st.code(json.dumps(res, indent=2)[:200000])
     with tab_table:
         if isinstance(res, list) and res and all(isinstance(r, dict) for r in res):
-            cols = st.session_state.visible_columns or list(res[0].keys())
-            chosen = st.multiselect("Columns to display", options=list(res[0].keys()), default=cols)
+            options = list(res[0].keys())
+            prev_cols = st.session_state.get("visible_columns")
+            default_cols = [c for c in (prev_cols or options) if c in options]
+            if not default_cols:
+                default_cols = options
+            chosen = st.multiselect("Columns to display", options=options, default=default_cols)
+            st.session_state.visible_columns = chosen or default_cols
             if chosen:
                 def _select_row(r):
                     return {k: r.get(k) for k in chosen if k in r}
