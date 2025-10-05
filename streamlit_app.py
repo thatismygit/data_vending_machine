@@ -277,7 +277,7 @@ with st.form("chat_form", clear_on_submit=True):
 if clear_chat_btn:
     for k in ["chat_history", "last_sql", "last_result"]:
         st.session_state[k] = [] if k == "chat_history" else None
-    st.experimental_rerun()
+    safe_rerun()
 
 prompt = None
 if send and user_input.strip():
@@ -294,7 +294,7 @@ if prompt:
     if GREETING_RE.search(prompt):
         st.session_state.chat_history.append({"role": "assistant", "content": ASSISTANT_INTRO})
         st.session_state.last_sql = ""
-        st.experimental_rerun()
+        safe_rerun()
 
     # Agent call: ChatOpenAI preferred, fallback to pgget.get_query if available
     async def agent_call(text: str) -> Dict[str, str]:
@@ -339,7 +339,7 @@ if prompt:
             sql = ""
     st.session_state.last_sql = sql or ""
     st.session_state.chat_history.append({"role": "assistant", "content": flat_resp})
-    st.experimental_rerun()
+    safe_rerun()
 
 
 # -------- Right: Controls --------
@@ -366,7 +366,7 @@ with right_col:
 
     if edit_query:
         st.session_state.edit_mode = True
-        st.rerun()
+        safe_rerun()
 
     if run_query and st.session_state.last_sql:
         with st.spinner("Running query..."):
@@ -379,7 +379,7 @@ with right_col:
         except Exception:
             st.session_state.last_result = result["stdout"]
         st.success("Query executed!")
-        st.rerun()
+        safe_rerun()
 
     st.markdown("---")
     st.subheader("📊 Query Result")
