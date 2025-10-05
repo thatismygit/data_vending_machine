@@ -235,7 +235,7 @@ with left_col:
             )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.form("chat_form", clear_on_submit=True):
+with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_area(
         "Ask a question or describe a query:",
         height=120,
