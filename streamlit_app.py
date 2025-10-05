@@ -103,6 +103,7 @@ ASSISTANT_INTRO = (
 
 # -------------------- Streamlit Setup --------------------
 st.set_page_config(page_title="Data Vending Machine", layout="wide")
+st.title("Data Vending Machine")
 st.markdown(
     """
     <style>
