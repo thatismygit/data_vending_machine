@@ -91,14 +91,19 @@ GREETING_RE = re.compile(
     r"^\s*(hi|hello|hey|yo|hiya|who are you|introduce yourself|what are you)\b",
     re.IGNORECASE,
 )
-ASSISTANT_INTRO = (
-    "👋 Hi — I'm the <b>Data Vending Machine Assistant</b>.<br><br>"
-    "I help you explore your database with natural language.<br>"
-    "Try things like:<br>"
-    "- <i>list tables</i><br>"
-    "- <i>show first 10 rows of customers</i><br>"
-    "- <i>average revenue per region</i>"
-)
+ASSISTANT_INTRO = """
+### 👋 Hi — I'm the **Data Vending Machine Assistant**
+
+I help you explore your database using **plain English** and convert your requests into **PostgreSQL queries**.
+
+You can try things like:
+
+```text
+show tables
+show first 10 rows of customers
+average revenue per region
+
+"""
 
 
 # -------------------- Streamlit Setup --------------------
