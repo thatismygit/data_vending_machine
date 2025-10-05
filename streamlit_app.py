@@ -236,11 +236,17 @@ with left_col:
     st.markdown("</div>", unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_area("Ask a question or describe a query:", height=120, key="chat_input")
+    user_input = st.text_area(
+        "Ask a question or describe a query:",
+        height=120,
+        key="chat_input"
+    )
+
     c1, c2, c3 = st.columns(3)
     send = c1.form_submit_button("Send")
     regen = c2.form_submit_button("Regenerate")
     clear_chat_btn = c3.form_submit_button("Clear Chat")
+
 
 if clear_chat_btn:
     for k in ["chat_history", "last_sql", "last_result"]:
