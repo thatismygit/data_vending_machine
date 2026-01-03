@@ -103,7 +103,7 @@ with container:
     st.markdown("</div>", unsafe_allow_html=True)
 
     with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_area("", height=120, placeholder="Ask a question or describe a query...", key="chat_input")
+        user_input = st.text_area("Chat input", height=120, placeholder="Ask a question or describe a query...", key="chat_input", label_visibility="collapsed")
         col1, col2, col3 = st.columns([1,1,1])
         send = col1.form_submit_button("Send")
         regen = col2.form_submit_button("Regenerate")
